@@ -103,9 +103,7 @@ spec:
         }
 
         stage('Build and Push Image') {
-            when {
-                branch 'main'
-            }
+            // No branch condition needed - job is configured to only pull from main
             steps {
                 script {
                     // Get version info
@@ -127,9 +125,7 @@ spec:
         }
 
         stage('Create Release Tag') {
-            when {
-                branch 'main'
-            }
+            // No branch condition needed - job is configured to only pull from main
             steps {
                 container('golang') {
                     withCredentials([usernamePassword(
@@ -199,18 +195,14 @@ spec:
 
     post {
         success {
-            script {
-                if (env.BRANCH_NAME == 'main') {
-                    echo """
-                    ✅ Build successful!
+            echo """
+            ✅ Build successful!
 
-                    Image: ${env.IMAGE_NAME}:${env.VERSION}
-                    Tag: ${env.NEW_VERSION ?: 'N/A'}
+            Image: ${env.IMAGE_NAME}:${env.VERSION}
+            Tag: ${env.NEW_VERSION ?: 'N/A'}
 
-                    To pull: docker pull ${env.IMAGE_NAME}:${env.VERSION}
-                    """
-                }
-            }
+            To pull: docker pull ${env.IMAGE_NAME}:${env.VERSION}
+            """
         }
         failure {
             echo '❌ Build failed - check the logs'
