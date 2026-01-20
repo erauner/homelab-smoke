@@ -13,58 +13,7 @@
 pipeline {
     agent {
         kubernetes {
-            yaml '''
-apiVersion: v1
-kind: Pod
-metadata:
-  labels:
-    workload-type: ci-builds
-spec:
-  imagePullSecrets:
-  - name: nexus-registry-credentials
-  containers:
-  - name: jnlp
-    image: jenkins/inbound-agent:3355.v388858a_47b_33-3-jdk21
-    resources:
-      requests:
-        cpu: 100m
-        memory: 256Mi
-      limits:
-        cpu: 500m
-        memory: 512Mi
-  - name: golang
-    image: golang:1.25-alpine
-    command: ['sleep', '3600']
-    env:
-    - name: GOPROXY
-      value: https://athens.erauner.dev,direct
-    - name: GONOSUMDB
-      value: github.com/erauner/*
-    resources:
-      requests:
-        cpu: 500m
-        memory: 512Mi
-      limits:
-        cpu: 1000m
-        memory: 1Gi
-  - name: kaniko
-    image: gcr.io/kaniko-project/executor:debug
-    command: ['sleep', '3600']
-    volumeMounts:
-    - name: nexus-creds
-      mountPath: /kaniko/.docker
-    resources:
-      requests:
-        cpu: 500m
-        memory: 1Gi
-      limits:
-        cpu: 1000m
-        memory: 2Gi
-  volumes:
-  - name: nexus-creds
-    secret:
-      secretName: nexus-registry-credentials
-'''
+            yaml homelab.podTemplate('kaniko-go')
         }
     }
 
@@ -103,7 +52,6 @@ spec:
         }
 
         stage('Build and Push Image') {
-            // No branch condition needed - job is configured to only pull from main
             steps {
                 script {
                     // Get version info
@@ -125,7 +73,6 @@ spec:
         }
 
         stage('Create Release Tag') {
-            // No branch condition needed - job is configured to only pull from main
             steps {
                 container('golang') {
                     withCredentials([usernamePassword(
@@ -134,59 +81,15 @@ spec:
                         passwordVariable: 'GIT_TOKEN'
                     )]) {
                         script {
-                            sh 'apk add --no-cache git curl jq'
+                            sh 'apk add --no-cache curl jq'  // git already in golang image
 
-                            // Get current version info
-                            def currentTag = sh(
-                                script: "git describe --tags --abbrev=0 2>/dev/null || echo 'v0.0.0'",
-                                returnStdout: true
-                            ).trim()
-
-                            // Calculate next pre-release version
-                            def baseVersion = currentTag.replaceAll(/-rc\\..*/, '')
-                            // Use findAll to avoid serialization issues with Matcher
-                            def rcMatches = (currentTag =~ /-rc\\.(\d+)/).findAll()
-                            def rcNum = rcMatches ? (rcMatches[0][1] as int) + 1 : 1
-
-                            // If the current tag is a stable release, bump minor
-                            if (!currentTag.contains('-rc.')) {
-                                def parts = baseVersion.replace('v', '').tokenize('.')
-                                def major = parts[0] as int
-                                def minor = parts[1] as int
-                                baseVersion = "v${major}.${minor + 1}.0"
-                                rcNum = 1
-                            }
-
-                            env.NEW_VERSION = "${baseVersion}-rc.${rcNum}"
-                            echo "Creating pre-release: ${env.NEW_VERSION}"
-
-                            // Create and push tag
-                            sh """
-                                git config user.email "jenkins@erauner.dev"
-                                git config user.name "Jenkins CI"
-                                git tag -a ${env.NEW_VERSION} -m "Pre-release ${env.NEW_VERSION}"
-                                git remote set-url origin https://\${GIT_USER}:\${GIT_TOKEN}@github.com/erauner/homelab-smoke.git
-                                git push origin ${env.NEW_VERSION}
-                            """
-
-                            // Create GitHub pre-release
-                            def releasePayload = """{
-                                "tag_name": "${env.NEW_VERSION}",
-                                "name": "${env.NEW_VERSION}",
-                                "body": "Pre-release ${env.NEW_VERSION}\\n\\nImage: ${env.IMAGE_NAME}:${env.VERSION}",
-                                "draft": false,
-                                "prerelease": true
-                            }"""
-
-                            writeFile file: 'release-payload.json', text: releasePayload
-
-                            sh """
-                                curl -sf -X POST \\
-                                    -H "Authorization: token \${GIT_TOKEN}" \\
-                                    -H "Accept: application/vnd.github.v3+json" \\
-                                    -d @release-payload.json \\
-                                    "https://api.github.com/repos/erauner/homelab-smoke/releases"
-                            """
+                            // Use shared library for release creation
+                            def result = homelab.createPreRelease([
+                                repo: 'erauner/homelab-smoke',
+                                imageName: env.IMAGE_NAME,
+                                imageTag: env.VERSION
+                            ])
+                            env.NEW_VERSION = result.version
                         }
                     }
                 }
