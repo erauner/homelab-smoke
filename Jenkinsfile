@@ -96,7 +96,7 @@ spec:
                 container('golang') {
                     sh '''
                         echo "=== Verifying build ==="
-                        go build -o /dev/null ./cmd/smoke
+                        go build -buildvcs=false -o /dev/null ./cmd/smoke
                     '''
                 }
             }
