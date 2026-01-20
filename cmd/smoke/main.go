@@ -68,7 +68,7 @@ func main() {
 		checksPath = findChecksFile()
 		if checksPath == "" {
 			fmt.Fprintf(os.Stderr, "Error: checks.yaml not found\n")
-			fmt.Fprintf(os.Stderr, "Tried: ./checks.yaml, tools/smoke/checks.yaml\n")
+			fmt.Fprintf(os.Stderr, "Tried: ./checks.yaml, ./smoke/checks.yaml, ./tools/smoke/checks.yaml\n")
 			os.Exit(2)
 		}
 	}
@@ -145,9 +145,14 @@ func main() {
 }
 
 // findChecksFile looks for checks.yaml in common locations.
+// Priority order:
+//  1. ./checks.yaml (for development in homelab-smoke repo)
+//  2. ./smoke/checks.yaml (for repos using smoke as external framework)
+//  3. ./tools/smoke/checks.yaml (legacy location)
 func findChecksFile() string {
 	candidates := []string{
 		"checks.yaml",
+		"smoke/checks.yaml",
 		"tools/smoke/checks.yaml",
 	}
 
