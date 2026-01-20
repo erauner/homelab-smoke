@@ -1,0 +1,15 @@
+# Binary (only at root, not cmd/smoke directory)
+/smoke
+smoke.exe
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Test output
+coverage.out
+*.test
+
+# OS
+.DS_Store
