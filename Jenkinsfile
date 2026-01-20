@@ -144,8 +144,9 @@ spec:
 
                             // Calculate next pre-release version
                             def baseVersion = currentTag.replaceAll(/-rc\\..*/, '')
-                            def rcMatch = (currentTag =~ /-rc\\.(\d+)/)
-                            def rcNum = rcMatch ? (rcMatch[0][1] as int) + 1 : 1
+                            // Use findAll to avoid serialization issues with Matcher
+                            def rcMatches = (currentTag =~ /-rc\\.(\d+)/).findAll()
+                            def rcNum = rcMatches ? (rcMatches[0][1] as int) + 1 : 1
 
                             // If the current tag is a stable release, bump minor
                             if (!currentTag.contains('-rc.')) {
