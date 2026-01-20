@@ -1,8 +1,20 @@
-# Homelab Smoke Tests
+# Homelab Smoke Test Framework
 
-Declarative smoke test framework for validating homelab cluster health.
+Declarative smoke test framework for validating Kubernetes cluster health.
 
-Checks are defined in `checks.yaml` and run as shell commands or scripts with template variables. Each check reports one of: **PASS**, **FAIL**, **WARN**, **SKIP**, or **ERROR**.
+This repository contains the **framework** (Go CLI + runner). Cluster-specific tests live in the consuming repository (e.g., [homelab-k8s/smoke/](https://github.com/erauner12/homelab-k8s/tree/master/smoke)).
+
+## Architecture
+
+```
+Pattern:
+  homelab-smoke/          # This repo: Generic framework (reusable)
+  homelab-k8s/smoke/      # Cluster-specific tests (checks.yaml + scripts)
+```
+
+This follows the same pattern as:
+- `kyverno` CLI + `policies/kyverno/` tests
+- `promtool` CLI + `alerts/` rules
 
 ## Installation
 
@@ -12,35 +24,57 @@ Checks are defined in `checks.yaml` and run as shell commands or scripts with te
 # Pull from registry
 docker pull docker.nexus.erauner.dev/homelab/smoke:latest
 
-# Run with kubeconfig mounted
-docker run -v ~/.kube:/home/smoke/.kube:ro \
+# Run with external checks directory
+docker run --rm \
+    -v ~/.kube:/root/.kube:ro \
+    -v /path/to/smoke:/checks:ro \
     docker.nexus.erauner.dev/homelab/smoke:latest \
-    -cluster=home -context=home-admin
+    --checks=/checks/checks.yaml \
+    --cluster=home \
+    --context=home-admin
 ```
 
 ### Build from Source
 
 ```bash
-# Clone and build
-git clone https://github.com/erauner/homelab-smoke.git
-cd homelab-smoke
-go build -o smoke ./cmd/smoke
-
-# Run smoke tests
-./smoke -cluster=home -context=home-admin
+go install github.com/erauner/homelab-smoke/cmd/smoke@latest
 ```
 
-## Quick Start
+### Go Install
 
 ```bash
-# Run smoke tests
-./smoke -cluster=home -context=home-admin
+go install github.com/erauner/homelab-smoke/cmd/smoke@latest
+```
+
+## Usage
+
+```bash
+# Auto-discover checks.yaml (looks in ./checks.yaml, ./smoke/checks.yaml)
+smoke --cluster=home --context=home-admin
+
+# Explicit checks file
+smoke --checks=/path/to/checks.yaml --cluster=home
 
 # List configured checks
-./smoke -list-checks
+smoke --list-checks
 
-# Verbose output (show all check output)
-./smoke -v
+# Verbose output
+smoke -v
+```
+
+## CLI Options
+
+```
+-checks          Path to checks YAML file (auto-discovers if not set)
+-cluster         Cluster name for template variables (default: home)
+-namespace       Kubernetes namespace for template variables
+-context         kubectl context for template variables
+-timeout         Default timeout for checks (default: 30s)
+-retries         Maximum retries for failing checks (default: 3)
+-retry-delay     Delay between retries (default: 2s)
+-v               Verbose output (show all check output)
+-list-checks     List configured checks and exit
+-version         Print version information and exit
 ```
 
 ## How It Works
@@ -66,21 +100,6 @@ Scripts must return one of these exit codes:
 - `expect.gating` only affects **FAIL**. ERROR always blocks; WARN/SKIP never block.
 - Scripts should return **0–4**. Any other exit code is treated as **ERROR**.
 - `validate` postconditions run only when the exit code is **0**.
-
-## CLI Options
-
-```
--checks          Path to checks YAML file (default: checks.yaml)
--cluster         Cluster name for template variables (default: home)
--namespace       Kubernetes namespace for template variables
--context         kubectl context for template variables
--timeout         Default timeout for checks (default: 30s)
--retries         Maximum retries for failing checks (default: 3)
--retry-delay     Delay between retries (default: 2s)
--v               Verbose output (show all check output)
--list-checks     List configured checks and exit
--version         Print version information and exit
-```
 
 ## Check Configuration
 
@@ -124,65 +143,15 @@ Use these in commands and script args:
 - `{{.Namespace}}` - Kubernetes namespace
 - `{{.Context}}` - kubectl context
 
-## Check Layers
+## CLI Exit Codes
 
-Checks are organized by dependency hierarchy (fail fast at lower layers):
+- **0**: All checks passed (or only non-gating failures)
+- **1**: One or more gating checks failed
+- **2**: Error (tool error or ERROR outcome)
 
-| Layer | Category | Examples |
-|-------|----------|----------|
-| 1 | Gateway Infrastructure | Gateway programmed, LoadBalancer IPs |
-| 2 | Network Policies | Correct ports, internal traffic allowed |
-| 3 | Core Services | ArgoCD, DNS connectivity |
-| 4 | Observability | Grafana, Prometheus |
-| 5 | Application Services | Jenkins, other apps |
+## Writing Checks
 
-## Adding a New Check
-
-### Option 1: Inline Command
-
-```yaml
-- name: "Pod Count"
-  command: kubectl get pods -n my-namespace --no-headers | wc -l
-  validate:
-    regex: '^[1-9][0-9]*$'  # At least 1 pod
-```
-
-### Option 2: External Script
-
-1. Create script in `scripts/`:
-
-```bash
-#!/usr/bin/env bash
-set -euo pipefail
-
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "${SCRIPT_DIR}/../common.sh"
-
-print_header "My Custom Check"
-
-# Your check logic here
-if some_condition; then
-    print_ok "Check passed"
-    exit "${EXIT_SUCCESS}"
-else
-    print_fail "Check failed"
-    exit "${EXIT_FAILURE}"
-fi
-```
-
-2. Add to `checks.yaml`:
-
-```yaml
-- name: "My Custom Check"
-  script:
-    path: "./scripts/my-check.sh"
-    args:
-      - "{{.Namespace}}"
-  expect:
-    gating: true
-```
-
-Use `scripts/template.sh` as a starting point.
+See [GUIDELINES.md](GUIDELINES.md) for detailed guidance on writing smoke test scripts.
 
 ## Directory Structure
 
@@ -196,18 +165,9 @@ homelab-smoke/
 │   ├── validate/         # Output postconditions
 │   ├── config/           # YAML config loader
 │   └── runner/           # Check orchestration
-├── scripts/
-│   ├── common.sh         # Shared functions
-│   ├── template.sh       # Template for new checks
-│   ├── utils/
-│   │   └── httpcheck     # HTTP endpoint testing
-│   └── infra/
-│       ├── gateway-programmed.sh
-│       ├── loadbalancer-ips.sh
-│       └── ...
-├── checks.yaml           # Check definitions
 ├── Dockerfile            # Container image build
 ├── Jenkinsfile           # CI/CD pipeline
+├── GUIDELINES.md         # Check authoring guide
 └── README.md
 ```
 
@@ -217,19 +177,16 @@ This repo uses Jenkins for CI:
 - **On push to main**: Builds and pushes container image, creates pre-release tag (vX.Y.Z-rc.N)
 - **Image registry**: `docker.nexus.erauner.dev/homelab/smoke`
 
-## CLI Exit Codes
-
-- **0**: All checks passed (or only non-gating failures)
-- **1**: One or more gating checks failed
-- **2**: Error (tool error or ERROR outcome)
-
 ## Security Considerations
 
 **Trust Model**: This tool assumes the `checks.yaml` configuration file is trusted. Commands and scripts are executed via `sh -c` with template variable substitution. Do not load configuration files from untrusted sources.
 
-**Network Access**: Some checks make HTTP requests to verify service availability. The `httpcheck` script uses `curl -k` to accept self-signed certificates, which is appropriate for homelab environments.
-
 **Permissions**: Checks use `kubectl` which requires appropriate cluster credentials. Ensure the tool runs with least-privilege service account credentials in CI/CD pipelines.
+
+## Related
+
+- [homelab-k8s/smoke/](https://github.com/erauner12/homelab-k8s/tree/master/smoke) - Example cluster-specific tests
+- [Issue #1283](https://github.com/erauner12/homelab-k8s/issues/1283) - Framework/tests separation
 
 ## License
 
