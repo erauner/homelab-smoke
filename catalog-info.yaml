@@ -1,0 +1,23 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: homelab-smoke
+  description: Smoke test framework for validating Kubernetes cluster health and infrastructure
+  annotations:
+    github.com/project-slug: erauner12/homelab-smoke
+    jenkins.io/job-full-name: erauner/homelab-smoke/main
+    homelab.dev/manifest-name: homelab-smoke
+  tags:
+    - go
+    - cli
+    - testing
+    - smoke-tests
+    - kubernetes
+  links:
+    - url: https://github.com/erauner12/homelab-smoke
+      title: GitHub Repository
+spec:
+  type: library
+  lifecycle: production
+  owner: platform-team
+  system: homelab-infrastructure
