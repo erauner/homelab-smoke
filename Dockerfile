@@ -30,7 +30,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -buildvcs=false \
     -o /smoke ./cmd/smoke
 
 # Runtime stage
-FROM alpine:3.20
+FROM alpine:3.23
 
 # Install runtime dependencies
 RUN apk add --no-cache \
