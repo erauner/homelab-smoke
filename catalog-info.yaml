@@ -5,7 +5,7 @@ metadata:
   description: Smoke test framework for validating Kubernetes cluster health and infrastructure
   annotations:
     github.com/project-slug: erauner/homelab-smoke
-    jenkins.io/job-full-name: libraries/homelab-smoke/main
+    jenkins.io/job-full-name: libraries/homelab-smoke
     homelab.dev/manifest-name: homelab-smoke
   tags:
     - go
