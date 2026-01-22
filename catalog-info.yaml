@@ -4,7 +4,7 @@ metadata:
   name: homelab-smoke
   description: Smoke test framework for validating Kubernetes cluster health and infrastructure
   annotations:
-    github.com/project-slug: erauner12/homelab-smoke
+    github.com/project-slug: erauner/homelab-smoke
     jenkins.io/job-full-name: erauner/homelab-smoke/main
     homelab.dev/manifest-name: homelab-smoke
   tags:
@@ -14,7 +14,7 @@ metadata:
     - smoke-tests
     - kubernetes
   links:
-    - url: https://github.com/erauner12/homelab-smoke
+    - url: https://github.com/erauner/homelab-smoke
       title: GitHub Repository
 spec:
   type: library
