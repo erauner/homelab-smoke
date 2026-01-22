@@ -7,6 +7,7 @@ metadata:
     github.com/project-slug: erauner/homelab-smoke
     jenkins.io/job-full-name: libraries/homelab-smoke
     homelab.dev/manifest-name: homelab-smoke
+    nexus-repository-manager/docker.image-name: homelab/smoke
   tags:
     - go
     - cli
