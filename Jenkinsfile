@@ -30,11 +30,21 @@ pipeline {
     }
 
     stages {
+        stage('Setup') {
+            steps {
+                container('golang') {
+                    sh '''
+                        echo "=== Installing dependencies ==="
+                        apk add --no-cache git curl jq
+                    '''
+                }
+            }
+        }
+
         stage('Test') {
             steps {
                 container('golang') {
                     sh '''
-                        apk add --no-cache git
                         echo "=== Running tests ==="
                         go test -v ./...
                     '''
@@ -129,9 +139,8 @@ pipeline {
                         passwordVariable: 'GIT_TOKEN'
                     )]) {
                         script {
-                            sh 'apk add --no-cache curl jq'  // git already in golang image
-
                             // Use shared library for release creation
+                            // Dependencies (git, curl, jq) installed in Setup stage
                             def result = homelab.createPreRelease([
                                 repo: 'erauner/homelab-smoke',
                                 imageName: env.IMAGE_NAME,
