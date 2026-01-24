@@ -1,6 +1,15 @@
 # Multi-stage Dockerfile for homelab smoke test runner
 # Builds the Go binary and creates a minimal runtime image
 # Image pushed to: docker.nexus.erauner.dev/homelab/smoke
+#
+# Runtime Usage:
+#   The smoke binary expects checks and scripts to be mounted at runtime:
+#   docker run --rm \
+#     -v "$HOME/.kube:/root/.kube:ro" \
+#     -v "/path/to/smoke:/checks:ro" \
+#     --network host \
+#     smoke:latest \
+#     --checks="/checks/checks.yaml"
 
 # Build stage
 FROM golang:1.25-alpine AS builder
@@ -45,13 +54,8 @@ RUN adduser -D -u 1000 smoke
 # Copy binary from builder
 COPY --from=builder /smoke /usr/local/bin/smoke
 
-# Copy scripts and checks configs
-COPY scripts /app/scripts
-COPY checks.yaml /app/checks.yaml
-COPY checks-minimal.yaml /app/checks-minimal.yaml
-
-# Make scripts executable
-RUN chmod +x /app/scripts/utils/* /app/scripts/infra/* /app/scripts/apps/* 2>/dev/null || true
+# Create app directory for mounted content
+RUN mkdir -p /app && chown smoke:smoke /app
 
 # Set working directory
 WORKDIR /app
@@ -60,5 +64,6 @@ WORKDIR /app
 USER smoke
 
 # Default entrypoint
+# Checks and scripts should be mounted at /checks
 ENTRYPOINT ["/usr/local/bin/smoke"]
-CMD ["-checks=/app/checks.yaml", "-v"]
+CMD ["--help"]
